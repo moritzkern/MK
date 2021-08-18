@@ -2,6 +2,9 @@
 class FooEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
+
+
+
     def __init__(self):
         pass
 
