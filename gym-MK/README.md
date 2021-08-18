@@ -1,0 +1,1 @@
+RI game for MK and LD to reduce inventories
