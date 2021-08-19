@@ -1,10 +1,75 @@
+import logging
+from math import prod
+
+from numpy.core.numeric import Inf
+logger = logging.getLogger(__name__)
+import gym
+from gym.utils import seeding
+import numpy as np
+
 
 class FooEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
-
     def __init__(self):
-        pass
+
+        #how much must be produced at least of all products
+        #intermediate products
+        self.MIN_DOUGH = 100
+        self.MIN_BUNS = 70
+        # end products
+        self.MIN_BREAD = 70
+        self.MIN_BUNS1 = 10
+        self.MIN_BUNS2 = 10
+        self.MIN_BUNS3 = 10 
+        #Initial situation
+        #Initial stocks
+        self.WH_DOUGH = 0
+        self.WH_BUNS = 0
+        self.WH_BREAD = 0
+        self.WH_BUNS1 = 0
+        self.WH_BUNS2 = 0
+        self.WH_BUNS3 = 0
+
+        #Initial demand
+        self.D_BUNS1 = 0
+        self.D_BUNS2 = 0
+        self.D_BUNS3 = 0
+        self.D_BREAD = 0
+
+        # an action consists of setting the production quantities of all individual products --> here 6 products 
+        self.action_space = gym.spaces.Discrete(4)
+        
+        # all stocks (intermediate products + end products) and demands (all products) of the last period are observed  
+        self.observation_space = gym.spaces.Discrete(10)
+
+        # Initialization of the game
+        self._seed()
+        self._reset()
+
+        # step in the game
+
+        self.count = 0
+
+        # Penalizing stock quantities and not meeting demand 
+        self.Kappa = 1000
+        self.Lambda = 5
+
+        # Determination of the maximum number of steps
+        self.MAX_STEPS = 100
+
+    def _reset(self):
+        """
+        Reset the state of the environment and returns an initial observation.
+        Returns
+        -------
+        observation (object): the initial observation of the space.
+        """
+        self.state = np.array([self.WH_DOUGH,self.WH_BUNS,self.WH_BREAD,self.WH_BUNS1,self.WH_BUNS2,self.WH_BUNS3, self.D_BREAD,self.D_BUNS1,self.D_BUNS2,self.D_BUNS3])
+        self.done = False
+        self.info = {}
+        self.reward = 0
+        return self.state
 
     def _step(self, action):
         """
@@ -35,27 +100,77 @@ class FooEnv(gym.Env):
                  However, official evaluations of your agent are not allowed to
                  use this for learning.
         """
-        self._take_action(action)
-        self.status = self.env.step()
-        reward = self._get_reward()
-        ob = self.env.getState()
-        episode_over = self.status != hfo_py.IN_GAME
-        return ob, reward, episode_over, {}
+        if self.done:
+            print("EPISODE DONE!")
+        elif self.count == self.MAX_STEPS:
+            self.done =True
+        else: 
+            assert self.action_space.contains(action)
+            self.count +=1
+            self.state[6:] = self._get_demand()
+            self.state[:5] = self._get_prod(action)
+            try:
+                assert self.observation_space.contains(self.state)
+            except AssertionError:
+                print("INVALID STATE", self.state)
+            self.reward = self._get_reward()
+            self.info["action"] = "DOUG {:2d}, BUNS, BREAD"
+       
+        return [self.state, self.reward, self.done, self.info]
 
-    def _reset(self):
-        pass
+    def _seed(self,seed=None):
+        """Sets the seed for this env's random number generator(s).
+        Note:
+            Some environments use multiple pseudorandom number generators.
+            We want to capture all such seeds used in order to ensure that
+            there aren't accidental correlations between multiple generators.
+        Returns:
+            list<bigint>: Returns the list of seeds used in this env's random
+              number generators. The first value in the list should be the
+              "main" seed, or the value which a reproducer should pass to
+              'seed'. Often, the main seed equals the provided 'seed', but
+              this won't be true if seed=None, for example.
+        """
+        self.np_random, seed = seeding.np_random(seed)
+        return [seed]
 
     def _render(self, mode='human', close=False):
-        pass
+        """Renders the environment.
+        The set of supported modes varies per environment. (And some
+        environments do not support rendering at all.) By convention,
+        if mode is:
+        - human: render to the current display or terminal and
+          return nothing. Usually for human consumption.
+        Args:
+            mode (str): the mode to render with
+        """
+        s = "state: {:2d}  reward: {:2d}  info: {}"
+        print(s.format(self.state, self.reward, self.info))
 
-    def _take_action(self, action):
-        pass
+    def _get_demand(self):
+        """
+        simulate the different demands 
+        """
+        D_bread = np.random.normal(loc=3,scale=0.5,size=1)
+        D_buns1 = np.random.nornmal(loc=2,scale = 0.2,size=1)
+        D_buns2 = np.random.normal(loc=1,scale=0.1,size=1)
+        D_buns3 = np.random.normal(loc=1,scale=0.1,size=1)
+        # only positiv demand is possible therefore clip the vector 
+        return np.clip(np.array[D_bread,D_buns1,D_buns2,D_buns3],0,None)
 
     def _get_reward(self):
-        """ Reward is given for XY. """
-        if self.status == FOOBAR:
-            return 1
-        elif self.status == ABC:
-            return self.somestate ** 2
+        """ Reward for producing """
+        #not meeting the demand is evaluated very negatively
+        if self.state[2:5]-self.state[5:]:
+            return -self.KAPPA
+        #stock qunatities are also not that nice
         else:
-            return 0
+            return -self.LAMBDA * np.sum(self.state[:5])
+
+    def _get_prod(self,action):
+        """
+        what is the easiest way to serve the production MK help?
+        """
+        prod_bread = 0
+        prod_dough = 0
+        return np.concatenate((np.array[prod_dough,prod_bread],action),axis=1)
