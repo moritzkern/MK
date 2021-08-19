@@ -10,7 +10,7 @@ df = pd.read_csv("/Users/andreferdinand/Desktop/MOPT/MK/gym-MK/gym_MK/envs/Produ
 state = State()
 
 
-class FooEnv(gym.Env):
+class MKEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
     def __init__(self):
