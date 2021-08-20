@@ -4,9 +4,14 @@ import gym
 from gym.utils import seeding
 import numpy as np
 import pandas as pd 
-from helper_stats import state, min_prod
+from helper_stats import state, min_prod, demand_dist, demand_dist_parameter
 df = pd.read_csv("/Users/andreferdinand/Desktop/MOPT/MK/gym-MK/gym_MK/envs/Products.csv")
 
+#TODO: Cleverer Automatisieren MK Fragen 
+_DIST = {
+    "NORMAL": np.random.normal,
+    "UNIFORM": np.random.uniform
+}
 
 
 class MKEnv(gym.Env):
@@ -14,22 +19,28 @@ class MKEnv(gym.Env):
 
     def __init__(self):
 
+        # List of all Endproducts
+        self.endproducts = df["PRODUCT"][df["ENDPRODUCT"]]
+
         # Initial situation
         self.game_state = state()
         self.game_state_length = len([i for  i in self.game_state.__dir__() if not i.startswith("__")])
         # Minimum quantity to produce 
         self.min_product = min_prod()
 
-        # an action consists of setting the production quantities of all individual products --> here 6 products 
+        # an action consists of setting the production quantities of all individual products --> here 4 products 
         self.action_length = len([i for  i in self.game_state.__dir__() if i.startswith("DEMAND")])
         self.action_space = gym.spaces.Discrete(self.action_length)
         
+        # Setting demand distribution of Endproducts
+        self.demand_dist_end = demand_dist()
+        self.demand_dist_end_para = demand_dist_parameter()
         # all stocks (intermediate products + end products) and demands (all products) of the last period are observed  
         self.observation_space = gym.spaces.Discrete(self.game_state_length)
 
         # Initialization of the game
         self._seed()
-        self._reset()
+        self.reset()
 
         # step in the game
 
@@ -42,18 +53,17 @@ class MKEnv(gym.Env):
         # Determination of the maximum number of steps
         self.MAX_STEPS = 100
 
-    def _reset(self):
+    def reset(self):
         """
         Reset the state of the environment and returns an initial observation.
         Returns
         -------
         observation (object): the initial observation of the space.
         """
-        self.state = state()
+        self.game_state = state()
         self.done = False
         self.info = {}
         self.reward = 0
-        return self.state
 
     def _step(self, action):
         """
@@ -135,21 +145,19 @@ class MKEnv(gym.Env):
         """
         simulate the different demands 
         """
-        D_bread = np.random.normal(loc=3,scale=0.5,size=1)
-        D_buns1 = np.random.normal(loc=2,scale = 0.2,size=1)
-        D_buns2 = np.random.normal(loc=1,scale=0.1,size=1)
-        D_buns3 = np.random.normal(loc=1,scale=0.1,size=1)
+        for i in self.endproducts:
+            setattr(self.game_state,"DEMAND_"+i,_DIST[getattr(self.demand_dist_end,"DDIST_"+i)](*getattr(self.demand_dist_end_para,"DDISTPARA_"+i))) 
         # only positiv demand is possible therefore clip the vector 
-        return np.clip(np.array[D_bread,D_buns1,D_buns2,D_buns3],0,None)
+        return
 
     def _get_reward(self):
         """ Reward for producing """
         #not meeting the demand is evaluated very negatively
-        if self.state[2:5]-self.state[5:]:
+        if not all([getattr(self.game_state,"STORAGE_"+i)-getattr(self.game_state,"DEMAND_"+i)>=0 for i in self.endproducts]):
             return -self.KAPPA
         #stock qunatities are also not that nice
         else:
-            return -self.LAMBDA * np.sum(self.state[:5])
+            return -self.LAMBDA * sum([getattr(self.game_state,"STORAGE_"+i) for i in df["PRODUCT"]])
 
     def _get_prod(self,action):
         """
