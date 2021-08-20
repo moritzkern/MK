@@ -4,10 +4,9 @@ import gym
 from gym.utils import seeding
 import numpy as np
 import pandas as pd 
-from state import State
+from helper_stats import state, min_prod
 df = pd.read_csv("/Users/andreferdinand/Desktop/MOPT/MK/gym-MK/gym_MK/envs/Products.csv")
 
-state = State()
 
 
 class MKEnv(gym.Env):
@@ -15,38 +14,18 @@ class MKEnv(gym.Env):
 
     def __init__(self):
 
-        #how much must be produced at least of all products
-        self.state =State()
-        #intermediate products
-        self.MIN_DOUGH = 100
-        self.MIN_BUNS = 70
-
-        # end products
-        self.MIN_BREAD = 70
-        self.MIN_BUNS1 = 10
-        self.MIN_BUNS2 = 10
-        self.MIN_BUNS3 = 10 
-
-        #Initial situation
-
-        #Initial stocks
-        self.WH_DOUGH = 0
-        self.WH_BUNS = 0
-        self.WH_BREAD = 0
-        self.WH_BUNS1 = 0
-        self.WH_BUNS2 = 0
-        self.WH_BUNS3 = 0
-        #Initial demand
-        self.D_BUNS1 = 0
-        self.D_BUNS2 = 0
-        self.D_BUNS3 = 0
-        self.D_BREAD = 0
+        # Initial situation
+        self.game_state = state()
+        self.game_state_length = len([i for  i in self.game_state.__dir__() if not i.startswith("__")])
+        # Minimum quantity to produce 
+        self.min_product = min_prod()
 
         # an action consists of setting the production quantities of all individual products --> here 6 products 
-        self.action_space = gym.spaces.Discrete(4)
+        self.action_length = len([i for  i in self.game_state.__dir__() if i.startswith("DEMAND")])
+        self.action_space = gym.spaces.Discrete(self.action_length)
         
         # all stocks (intermediate products + end products) and demands (all products) of the last period are observed  
-        self.observation_space = gym.spaces.Discrete(10)
+        self.observation_space = gym.spaces.Discrete(self.game_state_length)
 
         # Initialization of the game
         self._seed()
@@ -70,7 +49,7 @@ class MKEnv(gym.Env):
         -------
         observation (object): the initial observation of the space.
         """
-        self.state = np.array([self.WH_DOUGH,self.WH_BUNS,self.WH_BREAD,self.WH_BUNS1,self.WH_BUNS2,self.WH_BUNS3, self.D_BREAD,self.D_BUNS1,self.D_BUNS2,self.D_BUNS3])
+        self.state = state()
         self.done = False
         self.info = {}
         self.reward = 0
