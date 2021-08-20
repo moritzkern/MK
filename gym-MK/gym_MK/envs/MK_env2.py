@@ -101,16 +101,17 @@ class MKEnv(gym.Env):
         else: 
             assert self.action_space.contains(action)
             self.count +=1
-            self.state[6:] = self._get_demand()
-            self.state[:5] = self._get_prod(action)
+            self._get_demand()
+            self._get_prod(action)
             try:
                 assert self.observation_space.contains(self.state)
             except AssertionError:
                 print("INVALID STATE", self.state)
             self.reward = self._get_reward()
+            #TODO: change info to right action 
             self.info["action"] = "BREAD {:2d}, BUNS1 {:2d}, BUNS2 {:2d}, BUNS3 {:2d}".format(self.action[0],self.action[1],self.action[2],self.action[3])
        
-        return [self.state, self.reward, self.done, self.info]
+        return [self.game_state, self.reward, self.done, self.info]
 
     def _seed(self,seed=None):
         """Sets the seed for this env's random number generator(s).
@@ -143,7 +144,7 @@ class MKEnv(gym.Env):
 
     def _get_demand(self):
         """
-        simulate the different demands 
+        Simulate the different demands 
         """
         for i in self.endproducts:
             setattr(self.game_state,"DEMAND_"+i,_DIST[getattr(self.demand_dist_end,"DDIST_"+i)](*getattr(self.demand_dist_end_para,"DDISTPARA_"+i))) 
@@ -151,7 +152,9 @@ class MKEnv(gym.Env):
         return
 
     def _get_reward(self):
-        """ Reward for producing """
+        """ 
+        Reward for producing 
+        """
         #not meeting the demand is evaluated very negatively
         if not all([getattr(self.game_state,"STORAGE_"+i)-getattr(self.game_state,"DEMAND_"+i)>=0 for i in self.endproducts]):
             return -self.KAPPA

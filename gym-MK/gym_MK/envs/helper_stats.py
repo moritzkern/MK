@@ -26,20 +26,3 @@ class demand_dist_parameter():
 for l,m in [["DDISTPARA_"+j, eval(df["DIST_PARA"][df["PRODUCT"]==j].to_list()[0])] for j in df["PRODUCT"][df["ENDPRODUCT"]]]:
     setattr(demand_dist_parameter,l,m)
 
-
-
-# >> def hello(name='World'): print('Hello %s' % name)
-
-# >>> hello()
-# Hello World
-
-# >>> hello('Vist')
-# Hello Vist
-
-# >>> d = {'fun': hello}
-
-# >>> d['fun']()
-# Hello World
-
-# >>> d['fun']('Vist')
-# Hello Vist 
