@@ -199,7 +199,7 @@ class MKEnv(gym.Env):
         """
         liste = list(self.game_state)
         for i in self.endproducts:
-            liste[self.observation_assignment_rev["STORAGE_"+i]] +=
+            liste[self.observation_assignment_rev["STORAGE_"+i]] += 10
         return tuple(self.game_state)
     
     def _update_storage(self):
