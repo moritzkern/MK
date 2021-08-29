@@ -1,4 +1,3 @@
-#loading requiered packages
 import logging
 logger = logging.getLogger(__name__)
 import gym
@@ -6,16 +5,9 @@ from gym.utils import seeding
 import numpy as np
 import pandas as pd 
 from helper_stats import state, min_prod, demand_dist, demand_dist_parameter
-
-# import config csv 
 df = pd.read_csv("/Users/andreferdinand/Desktop/MOPT/MK/gym-MK/gym_MK/envs/Products.csv")
 
-# import startespace as dictionary
-start_space = dict(["STORAGE_"+i, int(df["STORAGE"][df["PRODUCT"]==i])] for i in df["PRODUCT"])
-start_space.update(dict(["DEMAND_"+j, 0] for j in df["PRODUCT"][df["ENDPRODUCT"]]))
-
-
-# dictionary with different demand distributions 
+#TODO: Cleverer Automatisieren MK Fragen 
 _DIST = {
     "NORMAL": np.random.normal,
     "UNIFORM": np.random.uniform
@@ -27,48 +19,35 @@ class MKEnv(gym.Env):
 
     def __init__(self):
         
-        #TODO:
+        #TODO: change of action_space and observation space with tupels
 
         # List of all Endproducts
         self.endproducts = df["PRODUCT"][df["ENDPRODUCT"]].to_list()
 
-        # Setting demand distribution of Endproducts
-        self.demand_dist_end = demand_dist()
-        self.demand_dist_end_para = demand_dist_parameter()
-        
-        # Names of state space variables
-        self.names = ["STORAGE_"+i for i in df["PRODUCT"]] + ["DEMAND_"+j for j in df["PRODUCT"][df["ENDPRODUCT"]]]
-
-        # dictionary with assignment of position from products and demands   
-        self.observation_assignment = dict(enumerate(self.names))
-        self.observation_assignment_rev = {y:x for x,y in self.observation_assignment.items()}
-        # number of possible (different) states for each object
-        self.observation_number_of_possibilities = 200
-
-        # Initialize the game
-        self._seed()
-        self.game_state = self.reset()
-        self.game_state_length = len(self.game_state)
-        
-        # Construction of observable space
-
-        self.observation_space = gym.spaces.Tuple(tuple([gym.spaces.Discrete(self.observation_number_of_possibilities) for _ in range(self.game_state_length)]))
-
+        # Initial situation
+        self.game_state = state()
+        self.game_state_length = len([i for  i in self.game_state.__dir__() if not i.startswith("__")])
         # Minimum quantity to produce 
         self.min_product = min_prod()
 
         # an action consists of setting the production quantities of all individual products --> here 4 products 
-        # dictionary with assignment of position from products and demands 
         self.action_assignment = dict(enumerate(self.endproducts))
-        self.action_assignment_rev = {y:x for x,y in self.action_assignment.items()}
-
-        # number of possible (different) actions for each endproduct
         self.action_number_of_possibilities = 5
-        self.action_length = len(self.endproducts)
-
-        # Construction of action space
+        self.action_length = len([i for  i in self.game_state.__dir__() if i.startswith("DEMAND")])
         self.action_space = gym.spaces.Tuple(tuple([gym.spaces.Discrete(self.action_number_of_possibilities) for _ in range(self.action_length)]))
         
+        # Setting demand distribution of Endproducts
+        self.demand_dist_end = demand_dist()
+        self.demand_dist_end_para = demand_dist_parameter()
+        # all stocks (intermediate products + end products) and demands (all products) of the last period are observed  
+        self.observation_assignment = dict(enumerate([i for  i in self.game_state.__dir__() if not i.startswith("__")]))
+        self.observation_number_of_possibilities = 200
+        self.observation_space = gym.spaces.Tuple(tuple([gym.spaces.Discrete(self.observation_number_of_possibilities) for _ in range(self.game_state_length)]))
+
+        # Initialization of the game
+        self._seed()
+        self.reset()
+
         # step in the game
 
         self.count = 0
@@ -87,10 +66,10 @@ class MKEnv(gym.Env):
         -------
         observation (object): the initial observation of the space.
         """
+        self.game_state = state()
         self.done = False
         self.info = {}
         self.reward = 0
-        return tuple(start_space[self.observation_assignment[i]] for i in range(len(start_space)))
 
     def _step(self, action):
         """
@@ -128,16 +107,16 @@ class MKEnv(gym.Env):
         else: 
             assert self.action_space.contains(action)
             self.count +=1
-            self.game_state = self._get_demand()
-            self.game_state = self._get_prod(action)
+            self._get_demand()
+            self._get_prod(action)
             try:
                 assert self.observation_space.contains(self.state)
             except AssertionError:
                 print("INVALID STATE", self.state)
             self.reward = self._get_reward()
-            self.game_state = self._update_storage()
-            self.info["action"] = "|".join([i+ ": " + str(self.game_state[self.observation_assignment_rev[i]]) for i in self.names])
-            self.info["action"] = "|".join([i+ ": " + str(action[self.action_assignment_rev[i]]) for i in self.endproducts])
+            #TODO: change info to right action 
+            self.info["action"] = "BREAD {:2d}, BUNS1 {:2d}, BUNS2 {:2d}, BUNS3 {:2d}".format(self.action[0],self.action[1],self.action[2],self.action[3])
+       
         return [self.game_state, self.reward, self.done, self.info]
 
     def _seed(self,seed=None):
@@ -166,45 +145,38 @@ class MKEnv(gym.Env):
         Args:
             mode (str): the mode to render with
         """
-        print("state:")
-        print("|".join([i+ ": " + str(self.game_state[self.observation_assignment_rev[i]]) for i in self.names]))
- 
+        s = "state: {:2d}  reward: {:2d}  info: {}"
+        print(s.format(self.state, self.reward, self.info))
 
     def _get_demand(self):
         """
         Simulate the different demands 
         """
-        liste = list(self.game_state)
         for i in self.endproducts:
-            liste[self.observation_assignment_rev["DEMAND_"+i]] = _DIST[getattr(self.demand_dist_end,"DDIST_"+i)](*getattr(self.demand_dist_end_para,"DDISTPARA_"+i))
-        # TODO: -only positiv demand is possible therefore clip the vector 
-        #       -only integer demand is possible
-        return tuple(liste)
+            setattr(self.game_state,"DEMAND_"+i,_DIST[getattr(self.demand_dist_end,"DDIST_"+i)](*getattr(self.demand_dist_end_para,"DDISTPARA_"+i))) 
+        # only positiv demand is possible therefore clip the vector 
+        return
 
-    def _get_reward(self,action):
+    def _get_reward(self):
         """ 
         Reward for producing 
         """
         #not meeting the demand is evaluated very negatively
-        if not all([self.game_state[self.observation_assignment_rev["STORAGE_"+i]]+action[self.action_assignment_rev[i]]-self.game_state[self.observation_assignment_rev["DEMAND_"+i]]>=0 for i in self.endproducts]):
+        if not all([getattr(self.game_state,"STORAGE_"+i)-getattr(self.game_state,"DEMAND_"+i)>=0 for i in self.endproducts]):
             return -self.KAPPA
-        #stock quantities are also not that nice
+        #stock qunatities are also not that nice
         else:
-            return -self.LAMBDA * (sum([self.game_state[self.observation_assignment_rev["STORAGE_"+i]] for i in df["PRODUCT"]])+sum(action))
+            return -self.LAMBDA * sum([getattr(self.game_state,"STORAGE_"+i) for i in df["PRODUCT"]])
 
     def _get_prod(self,action):
         """
         TODO!!!!
-        what is the easiest way to serve the production
+        what is the easiest way to serve the production MK help?
         """
-        liste = list(self.game_state)
-        for i in self.endproducts:
-            liste[self.observation_assignment_rev["STORAGE_"+i]] +=
-        return tuple(self.game_state)
-    
-    def _update_storage(self):
-        """substract demand from storage"""
-        liste = list(self.game_state)
-        for i in self.endproducts:
-            liste[self.observation_assignment_rev["STORAGE_"+i]] = max(liste[self.observation_assignment_rev["STORAGE_"+i]]-liste[self.observation_assignment_rev["DEMAND_"+i]],0) 
-        return tuple(liste)
+        if 5:
+            pass
+
+
+        prod_bread = 0
+        prod_dough = 0
+        return 
