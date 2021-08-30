@@ -1,4 +1,5 @@
 #loading requiered packages
+import copy
 import logging
 logger = logging.getLogger(__name__)
 import gym
@@ -13,6 +14,12 @@ df = pd.read_csv("/Users/andreferdinand/Desktop/MOPT/MK/gym-MK/gym_MK/envs/Produ
 # import startespace as dictionary
 start_space = dict(["STORAGE_"+i, int(df["STORAGE"][df["PRODUCT"]==i])] for i in df["PRODUCT"])
 start_space.update(dict(["DEMAND_"+j, 0] for j in df["PRODUCT"][df["ENDPRODUCT"]]))
+
+# dictionary with dependencies between products
+dependencies_dict = dict()
+gen = (j for j in df.columns if j.startswith("PROCESS"))
+for j in gen:
+    dependencies_dict.update(pd.Series(df[df[j].notnull()].PRODUCT.values,index=getattr(df[df[j].notnull()],j)).to_dict())
 
 
 # dictionary with different demand distributions 
@@ -197,9 +204,32 @@ class MKEnv(gym.Env):
         TODO!!!!
         what is the easiest way to serve the production
         """
+        dependencies_dict_copy = copy.deepcopy(dependencies_dict)
         liste = list(self.game_state)
+        action_dict = dict([[j,0] for j in df["PRODUCT"][~df["ENDPRODUCT"]]])
         for i in self.endproducts:
-            liste[self.observation_assignment_rev["STORAGE_"+i]] += 10
+            liste[self.observation_assignment_rev["STORAGE_"+i]] += action[self.action_assignment_rev[i]]
+            action_dict[dependencies_dict[i]] += action[self.action_assignment_rev[i]]
+            dependencies_dict_copy.pop(i)
+        notfinished_prod = [j for j in df["PRODUCT"][~df["ENDPRODUCT"]]]
+        while notfinished_prod:
+            while list(set(notfinished_prod)-set(list(dependencies_dict_copy.values()))):
+                for j in list(set(notfinished_prod)-set(list(dependencies_dict_copy.values()))):
+                    """
+                    TODO: was passiert alles hier?"""
+                    if liste[self.observation_assignment_rev["STORAGE_"+j]]>=action_dict[j]:
+                        liste[self.observation_assignment_rev["STORAGE_"+j]] -= action_dict[j]
+                    else:
+                        try:
+                            action_dict[dependencies_dict_copy[j]] += max(action_dict[j]-liste[self.observation_assignment_rev["STORAGE_"+j]], getattr(self.min_product,"MIN_"+j))
+                            liste[self.observation_assignment_rev["STORAGE_"+j]] += -action_dict[j] + action_dict[dependencies_dict_copy[j]]
+                        except:
+                            liste[self.observation_assignment_rev["STORAGE_"+j]] += -action_dict[j] + max(action_dict[j]-liste[self.observation_assignment_rev["STORAGE_"+j]],getattr(self.min_product,"MIN_"+j))
+                    notfinished_prod.remove(j)
+                    try: 
+                        dependencies_dict_copy.pop(j)
+                    except:
+                        pass
         return tuple(self.game_state)
     
     def _update_storage(self):
