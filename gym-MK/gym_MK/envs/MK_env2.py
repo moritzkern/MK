@@ -202,7 +202,7 @@ class MKEnv(gym.Env):
     def _get_prod(self,action):
         """
         TODO!!!!
-        what is the easiest way to serve the production
+        Test function
         """
         dependencies_dict_copy = copy.deepcopy(dependencies_dict)
         liste = list(self.game_state)
@@ -212,11 +212,11 @@ class MKEnv(gym.Env):
             action_dict[dependencies_dict[i]] += action[self.action_assignment_rev[i]]
             dependencies_dict_copy.pop(i)
         notfinished_prod = [j for j in df["PRODUCT"][~df["ENDPRODUCT"]]]
+        print(action_dict)
         while notfinished_prod:
             while list(set(notfinished_prod)-set(list(dependencies_dict_copy.values()))):
                 for j in list(set(notfinished_prod)-set(list(dependencies_dict_copy.values()))):
-                    """
-                    TODO: was passiert alles hier?"""
+                    print(j)
                     if liste[self.observation_assignment_rev["STORAGE_"+j]]>=action_dict[j]:
                         liste[self.observation_assignment_rev["STORAGE_"+j]] -= action_dict[j]
                     else:
@@ -230,7 +230,7 @@ class MKEnv(gym.Env):
                         dependencies_dict_copy.pop(j)
                     except:
                         pass
-        return tuple(self.game_state)
+        return tuple(liste)
     
     def _update_storage(self):
         """substract demand from storage"""
